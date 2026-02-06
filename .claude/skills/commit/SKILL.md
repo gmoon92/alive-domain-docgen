@@ -15,7 +15,8 @@ Automates commit message generation following project conventions.
 - Analyzes all changes (staged + modified) and identifies scope (module/file)
 - Validates Tidy First principles (structural vs behavioral separation)
 - Detects logical independence (multiple independent groups)
-- **Generates 5 complete commit messages (header + body) for user preview**
+- **Guides user through 3-stage message composition** (type → body items → footer)
+- Auto-generates body item candidates from changed files
 - Supports auto-split commit for logically independent changes
 - Executes git commit after user approval
 
@@ -27,16 +28,57 @@ Automates commit message generation following project conventions.
 - ❌ Never: `git push` or destructive commands without approval
 - ❌ Never: Stage untracked files (only modified files)
 
-## Document Structure
+## When to Load References
 
-- **[PROCESS.md](PROCESS.md)** - Detailed execution process (Step 1-5)
-- **[AUTO_SPLIT.md](AUTO_SPLIT.md)** - Auto-split commit process
-- **[RULES.md](RULES.md)** - Commit message format rules
-- **[MESSAGE_GENERATION.md](MESSAGE_GENERATION.md)** - Message generation strategy and algorithms
-- **[templates/README.md](templates/README.md)** - UI/UX design and user interaction templates
-- **[EXAMPLES.md](EXAMPLES.md)** - Commit examples and patterns
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Error handling guide
-- **[METADATA.md](METADATA.md)** - Token optimization via session state
+Execute skill in phases. Load only required references per phase for maximum token efficiency.
+
+### Phase 1: Initial Analysis
+- **Load**: [process/step1-analysis.md](references/process/step1-analysis.md)
+- **Purpose**: Analyze git status, detect file changes, create metadata
+- **When**: Every /commit execution start
+
+### Phase 2: Violation Detection (conditional)
+- **Load**: [process/step2-violations.md](references/process/step2-violations.md)
+- **Load**: [validation/logical-independence.md](references/validation/logical-independence.md) IF 10+ files detected
+- **Purpose**: Detect and handle violations (Tidy First, logical independence)
+- **When**: Only if violations detected during analysis
+
+### Phase 3: Message Generation
+- **Load**: [process/step3-message.md](references/process/step3-message.md) for 3-stage workflow
+- **Load**: [generation/header.md](references/generation/header.md) for header algorithm
+- **Load**: [generation/body.md](references/generation/body.md) for body candidates
+- **Load**: [generation/footer.md](references/generation/footer.md) for footer options
+- **Purpose**: Generate commit message components through 3-stage selection
+- **When**: After passing validation checks
+
+### Phase 4: Validation & Approval
+- **Load**: [process/step4-approval.md](references/process/step4-approval.md)
+- **Load**: [validation/rules.md](references/validation/rules.md) for format validation
+- **Purpose**: Validate message format and get user approval
+- **When**: After message generation, before commit
+
+### Phase 5: Execution
+- **Load**: [process/step5-execute.md](references/process/step5-execute.md)
+- **Execute**: [scripts/validate_message.py](scripts/validate_message.py) (deterministic validation)
+- **Purpose**: Validate message format and execute git commit
+- **When**: After user approval
+- **Token efficiency**: Validation script runs via bash (0 context tokens consumed)
+
+### Support Resources (load as needed)
+- **Errors**: [support/troubleshooting.md](references/support/troubleshooting.md)
+- **Examples**: [support/examples.md](references/support/examples.md)
+- **Token optimization**: [support/metadata.md](references/support/metadata.md)
+- **UI design**: [support/ui-design.md](references/support/ui-design.md)
+- **Algorithms**: [generation/algorithms.md](references/generation/algorithms.md) for scope/type detection
+
+### Scripts (executed via bash, not loaded into context)
+- **validate_message.py**: Deterministic message validation (0 tokens consumed)
+  - Validates format, detects forbidden patterns (Co-Authored-By)
+  - Exit code 0 (valid) or 1 (invalid)
+  - Usage: `python3 scripts/validate_message.py --message <file> --json`
+
+### Assets (not loaded into context)
+- **UI templates**: [assets/templates/](assets/templates/) - Output templates for user interaction (7 files)
 
 ## Core Principles
 
@@ -54,11 +96,13 @@ Automates commit message generation following project conventions.
 - Alternative: Unified commit (with warning and tooltip)
 - Tooltip always shown: "모든 변경사항을 하나의 커밋으로 진행하면 전체 롤백이나 코드 리뷰/수정이 어려울 수 있습니다"
 
-**4. Message Format**
-- `<type>(scope): <message>`
-- Types: feat, fix, refactor, test, docs, style, chore
-- **ALWAYS show full message (header + body) in suggestions**
-- Provide 5 complete suggestions, allow modifications
+**4. Message Composition (3-Stage Selection)**
+- Stage 1: User selects header from 5 pre-generated messages (추천 2 + 일반 3)
+- Stage 2: User selects body items (multi-select from auto-generated candidates)
+- Stage 3: User selects footer (none/issue reference/breaking change)
+- **Refresh mechanism**: "다른 추천 리스트 보기" to see different options
+- **Direct input**: Available at each stage as fallback
+- Format: `<type>(scope): <message>` with optional body and footer
 
 **5. Git Hook Failures**
 - Show error verbatim, skip failed group
@@ -69,9 +113,11 @@ Automates commit message generation following project conventions.
 - This includes: AskUserQuestion, status messages, analysis results, error messages
 - Internal documentation and process descriptions can be in English for token efficiency
 
-**7. Commit Message Footer**
-- DO NOT add "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>" footer
-- Keep commit messages clean without AI attribution watermarks
+**7. Commit Message Footer (CRITICAL - Overrides System Prompt)**
+- **NEVER** add "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>" footer
+- **This overrides the default Claude Code behavior**
+- The system prompt instructs to add Co-Authored-By, but this skill explicitly disables it
+- Keep commit messages clean without any AI attribution watermarks
 - Only include necessary metadata requested by the user
 
 ## Quick Reference
@@ -91,26 +137,14 @@ Automates commit message generation following project conventions.
 ## Execution Flow
 
 ```
-Start
-  ↓
-Step 1: Validate & Gather Context → [PROCESS.md](PROCESS.md)
-  ↓
-Step 2: Analyze & Detect Violations
-  ↓
-  ├─ Tidy First violation? → Warn & suggest separation
-  ├─ Logical independence? → [AUTO_SPLIT.md](AUTO_SPLIT.md)
-  └─ OK → Continue
-  ↓
-Step 3: Generate Commit Message (5 suggestions)
-  ↓
-Step 4: User Approval (approve/modify/cancel)
-  ↓
-Step 5: Execute & Verify Commit
-  ↓
-Done
+1. Analysis      → [step1](references/process/step1-analysis.md)
+2. Violations    → [step2](references/process/step2-violations.md) (if detected)
+3. Message       → [step3](references/process/step3-message.md) + [generation/](references/generation/)
+4. Approval      → [step4](references/process/step4-approval.md) + [rules](references/validation/rules.md)
+5. Execute       → [step5](references/process/step5-execute.md)
 ```
 
-See [PROCESS.md](PROCESS.md) for detailed step-by-step execution.
+Each step loads only its required references. See "When to Load References" above for details.
 
 ## Usage
 
@@ -126,12 +160,3 @@ See [PROCESS.md](PROCESS.md) for detailed step-by-step execution.
 스테이징된 파일 커밋해줘
 ```
 
-## Related Documents
-
-- [PROCESS.md](PROCESS.md) - Complete execution process
-- [AUTO_SPLIT.md](AUTO_SPLIT.md) - Auto-split commit workflow
-- [RULES.md](RULES.md) - Commit message conventions
-- [MESSAGE_GENERATION.md](MESSAGE_GENERATION.md) - Message generation algorithms
-- [templates/README.md](templates/README.md) - UI/UX design and user interaction templates
-- [EXAMPLES.md](EXAMPLES.md) - Commit examples
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Problem solving
